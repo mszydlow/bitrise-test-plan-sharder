@@ -38,8 +38,9 @@ myProj.parse(function (err) {
     const main_group_uuid = project.firstProject.mainGroup;
     const group = myProj.getPBXGroupByKey(main_group_uuid);
     log('Target children: ', group.children)
-    const target = group.children.find((child) => child.comment == TARGET);
-    const target_uuid = target.value;
+    const project_group = group.children.find((child) => child.comment == "Project");
+    const project_group_uuid = project_group.value;
+    const target_uuid = myProj.getPBXGroupByKey(project_group_uuid).children.find((child) => child.comment == TARGET).value;
 
     const tests = getRecursiveTests(myProj, target_uuid, []);
     log('Tests Found in Target:', tests.length);
@@ -504,7 +505,6 @@ function addTestPlanToXCodeScheme(schemeJson, testPlans) {
         testPlans.forEach((testPlan) => {
             schemeJson.Scheme.TestAction.TestPlans.TestPlanReference.push({ reference: 'container:' + testPlan, '$t': '' })
         });
-        console.log("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
     } else {
         console.error('Error: json.Scheme && json.Scheme.TestAction not found');
         process.exit();
