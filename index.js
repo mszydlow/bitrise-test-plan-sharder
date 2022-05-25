@@ -58,7 +58,16 @@ myProj.parse(function (err) {
                         let classIdx = line.indexOf(searchStr)
                         let endIdx = line.indexOf(':')
                         let className = line.substring(classIdx + searchStr.length + 1, endIdx);
-                        classNameTests.push(className);
+                        testFile.split(/\r?\n/).forEach((line) => {
+                            if (line.includes('func test')) {
+                                let searchStr = 'func';
+                                let funcIdx = line.indexOf(searchStr)
+                                let endIdx = line.indexOf(')')
+                                let functionName = line.substring(funcIdx + searchStr.length + 1, endIdx + 1);
+                                let fullName = String.raw`${className}~${functionName}`;
+                                classNameTests.push(fullName);
+                            }
+                        });
                     }
                 });
             } catch (err) {
@@ -555,7 +564,7 @@ function getRecursiveTests(myProj, target_uuid, tests = []) {
     // log('Checking=====:', target_uuid)
     if (target && target.children && target.children.length > 0) {
         target.children.forEach((test) => {
-            if (test && test.comment && (test.comment.indexOf('.swift') != -1 || test.comment.indexOf('.m') != -1)) {
+            if (test && test.comment && (test.comment.indexOf('Tests.swift') != -1 || test.comment.indexOf('Tests.m') != -1)) {
                 tests.push(test);
             } else {
                 return getRecursiveTests(myProj, test.value, tests)
