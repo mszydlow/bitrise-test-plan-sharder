@@ -44,12 +44,13 @@ myProj.parse(function (err) {
 
     const tests = getRecursiveTests(myProj, target_uuid, []);
     log('Tests Found in Target:', tests.length);
-    let classNameTests = []
+    var classNameTests = []
+    var classNameSkippedTests = getIgnoredTestNames();
 
     if (TEST_PATH != '') {
         let files = walkSync(TEST_PATH, []);
         tests.forEach((test, testIndex) => {
-            let path = files.find((file) => file.indexOf(test.comment) != -1);
+            let path = files.find((file) => file.indexOf("/" + test.comment) != -1);
             try {
                 let testFile = fs.readFileSync(path, 'utf-8');
                 testFile.split(/\r?\n/).forEach((line) => {
@@ -79,8 +80,19 @@ myProj.parse(function (err) {
     }
 
     // filter out duplicates
+    classNameSkippedTests = classNameSkippedTests.filter(function (elem, pos) {
+        return classNameSkippedTests.indexOf(elem) == pos;
+    })
+
     classNameTests = classNameTests.filter(function (elem, pos) {
         return classNameTests.indexOf(elem) == pos;
+    })
+
+    classNameSkippedTests.forEach((skippedName) => {
+        let duplicateIndex = classNameTests.indexOf(skippedName);
+        if (duplicateIndex !== -1) {
+            classNameTests.splice(duplicateIndex, 1);
+        }
     })
 
     log("Tests found in test path: ", classNameTests.length);
@@ -574,4 +586,63 @@ function getRecursiveTests(myProj, target_uuid, tests = []) {
     } else {
         return tests;
     }
+}
+
+function getIgnoredTestNames() {
+    var classNameSkippedTests = []
+    let testPlanPath = XCODE_PATH + TEST_PLAN;
+    testPlanData = fs.readFileSync(testPlanPath)
+
+    let jsonString = testPlanData.toString();
+    let testPlanJson = JSON.parse(jsonString.replace(/\\\//g, "~"));
+
+    let mainTarget = null;
+    let skippedTestsArr = null;
+    testPlanJson.testTargets.forEach((testTarget) => {
+        if (testTarget.target.name == TARGET) {
+            mainTarget = JSON.parse(JSON.stringify(testTarget));
+            skippedTestsArr = mainTarget.skippedTests
+        }
+    });
+    if (mainTarget == null) {
+        console.error('Error cannot find Test Target');
+        process.exit();
+    }
+
+    skippedTestsArr.forEach((skippedName) => {
+        if (skippedName.endsWith("()")) {
+            classNameSkippedTests.push(skippedName);
+        } else if (skippedName.endsWith("Tests")) {
+
+            // tests.push(skippedName + ".swift");
+            testFileName = skippedName + ".swift"
+            let files = walkSync(TEST_PATH, []);
+            let path = files.find((file) => file.indexOf(testFileName) != -1);
+            try {
+                let testFile = fs.readFileSync(path, 'utf-8');
+                testFile.split(/\r?\n/).forEach((line) => {
+                    if (line.includes('class')) {
+                        let searchStr = 'class';
+                        let classIdx = line.indexOf(searchStr)
+                        let endIdx = line.indexOf(':')
+                        let className = line.substring(classIdx + searchStr.length + 1, endIdx);
+                        testFile.split(/\r?\n/).forEach((line) => {
+                            if (line.includes('func test')) {
+                                let searchStr = 'func';
+                                let funcIdx = line.indexOf(searchStr)
+                                let endIdx = line.indexOf(')')
+                                let functionName = line.substring(funcIdx + searchStr.length + 1, endIdx + 1);
+                                let fullName = String.raw`${className}~${functionName}`;
+                                classNameSkippedTests.push(fullName);
+                            }
+                        });
+                    }
+                });
+            } catch (err) {
+                log('Error parsing file: ' + path, err);
+            }
+        }
+    })
+
+    return classNameSkippedTests
 }
